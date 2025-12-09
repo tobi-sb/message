@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion Templates SMS - Call Center</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 30px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .user-selector {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f5f5f5;
+            border-radius: 12px;
+        }
+        
+        .user-selector label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .user-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .user-btn {
+            padding: 10px 20px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .user-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+        
+        .user-btn.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .header-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .btn-manage-categories {
+            background: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-manage-categories:hover {
+            background: #218838;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+        }
+        
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            animation: fadeIn 0.3s;
+        }
+        
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 16px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            animation: slideIn 0.3s;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .modal-header h2 {
+            margin: 0;
+            color: #333;
+        }
+        
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #666;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .close-modal:hover {
+            color: #333;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .category-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .category-tab {
+            padding: 12px 24px;
+            border: none;
+            background: transparent;
+            color: #666;
+            cursor: pointer;
+            font-weight: 600;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+        
+        .category-tab:hover {
+            color: #667eea;
+        }
+        
+        .category-tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+        
+        .categories-manager {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .category-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border: 2px solid #eee;
+        }
+        
+        .category-color {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            border: 2px solid #ddd;
+            cursor: pointer;
+        }
+        
+        .category-name-input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        .category-color-input {
+            width: 80px;
+            padding: 8px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+        }
+        
+        .btn-small {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        
+        .btn-add-category {
+            background: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        
+        .btn-add-category:hover {
+            background: #218838;
+        }
+        
+        .templates-container {
+            display: none;
+        }
+        
+        .templates-container.active {
+            display: block;
+        }
+        
+        .template-item {
+            margin-bottom: 20px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 12px;
+            border: 2px solid #eee;
+            transition: all 0.3s;
+        }
+        
+        .template-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+        }
+        
+        .template-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        
+        .template-label {
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+        
+        .template-category-select {
+            padding: 4px 8px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 12px;
+            background: white;
+        }
+        
+        .template-textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 14px;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+        
+        .template-textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #eee;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #333;
+        }
+        
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        
+        .status {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        
+        .placeholder-info {
+            padding: 20px;
+            background: #e3f2fd;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 13px;
+            color: #1976d2;
+        }
+        
+        .placeholder-info strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Gestion Templates SMS</h1>
+        <p class="subtitle">Gérez les templates SMS et leurs catégories personnalisées depuis Supabase</p>
+        
+        <div class="user-selector">
+            <label>Utilisateur :</label>
+            <div class="user-buttons">
+                <button class="user-btn active" data-user="Tobi">Tobi</button>
+                <button class="user-btn" data-user="Elies">Elies</button>
+            </div>
+        </div>
+        
+        <div class="header-actions">
+            <div class="category-tabs">
+                <button class="category-tab active" data-category="Classic">Classic</button>
+                <button class="category-tab" data-category="PDF">PDF</button>
+                <button class="category-tab" data-category="PDF no website">PDF no website</button>
+                <button class="category-tab" data-category="Offert 3 month">Offert 3 month</button>
+            </div>
+            <button class="btn-manage-categories" onclick="openCategoriesModal()">Gérer les catégories</button>
+        </div>
+        
+        <div id="status" class="status"></div>
+        
+        <div id="templates-container" class="templates-container active">
+            <div class="loading">Chargement des templates...</div>
+        </div>
+        
+        <!-- Modal pour la gestion des catégories -->
+        <div id="categoriesModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Gestion des catégories</h2>
+                    <button class="close-modal" onclick="closeCategoriesModal()">&times;</button>
+                </div>
+                <div class="categories-manager" id="categories-manager">
+                    <div class="loading">Chargement des catégories...</div>
+                </div>
+                <button class="btn-add-category" onclick="addNewCategory()">+ Ajouter une catégorie</button>
+            </div>
+        </div>
+        
+        <div class="actions">
+            <button class="btn btn-primary" onclick="saveTemplates()">Sauvegarder les templates</button>
+            <button class="btn btn-secondary" onclick="loadTemplates()">Recharger</button>
+        </div>
+    </div>
+    
+    <script>
+        // Configuration Supabase
+        const SUPABASE_URL = 'https://ngrkpcdhizheeruitzmf.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ncmtwY2RoaXpoZWVydWl0em1mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk3Nzk5NjMsImV4cCI6MjA2NTM1NTk2M30.PbDscOck-RLbxddxQNhheC6CaGdMEdMwVNOprs0N7H0';
+        
+        let supabase;
+        let currentUser = 'Tobi';
+        let currentCategory = 'Classic';
+        let templates = [];
+        let categories = [];
+        
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', () => {
+            // Vérifier que le script Supabase est chargé
+            if (typeof window.supabase === 'undefined') {
+                console.error('Supabase script not loaded');
+                document.getElementById('templates-container').innerHTML = '<div class="status error">Erreur: Le script Supabase n\'est pas chargé. Vérifiez votre connexion internet.</div>';
+                return;
+            }
+            
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            setupEventListeners();
+            loadTemplates();
+        });
+        
+        function openCategoriesModal() {
+            const modal = document.getElementById('categoriesModal');
+            modal.classList.add('active');
+            loadCategories();
+        }
+        
+        function closeCategoriesModal() {
+            const modal = document.getElementById('categoriesModal');
+            modal.classList.remove('active');
+        }
+        
+        // Fermer le modal en cliquant en dehors
+        window.onclick = function(event) {
+            const modal = document.getElementById('categoriesModal');
+            if (event.target == modal) {
+                closeCategoriesModal();
+            }
+        }
+        
+        function setupEventListeners() {
+            // Boutons utilisateur
+            document.querySelectorAll('.user-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.user-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentUser = btn.dataset.user;
+                    loadTemplates();
+                });
+            });
+            
+            // Onglets catégories
+            document.querySelectorAll('.category-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    currentCategory = tab.dataset.category;
+                    loadTemplates();
+                });
+            });
+        }
+        
+        async function loadCategories() {
+            const container = document.getElementById('categories-manager');
+            container.innerHTML = '<div class="loading">Chargement des catégories...</div>';
+            
+            try {
+                const { data, error } = await supabase
+                    .from('message_categories')
+                    .select('*')
+                    .or(`user_name.is.null,user_name.eq.${currentUser}`)
+                    .order('category_name', { ascending: true });
+                
+                if (error) throw error;
+                
+                categories = data || [];
+                renderCategories();
+            } catch (error) {
+                console.error('Erreur lors du chargement des catégories:', error);
+                container.innerHTML = '<div class="status error">Erreur: ' + escapeHtml(error.message) + '</div>';
+            }
+        }
+        
+        function triggerColorPicker(catId) {
+            const colorInput = document.getElementById('color-input-' + catId);
+            if (colorInput) {
+                colorInput.click();
+            }
+        }
+        
+        function renderCategories() {
+            const container = document.getElementById('categories-manager');
+            
+            if (categories.length === 0) {
+                container.innerHTML = '<p style="color: #666; font-size: 14px;">Aucune catégorie personnalisée. Cliquez sur "Ajouter une catégorie" pour en créer une.</p>';
+                return;
+            }
+            
+            let html = '';
+            categories.forEach(cat => {
+                const catId = cat.id;
+                const colorHex = cat.color_hex;
+                const categoryName = escapeHtml(cat.category_name);
+                html += '<div class="category-item" data-id="' + catId + '">';
+                html += '<div class="category-color" style="background-color: ' + colorHex + ';" onclick="triggerColorPicker(' + catId + ')"></div>';
+                html += '<input type="color" class="category-color-input" id="color-input-' + catId + '" data-cat-id="' + catId + '" value="' + colorHex + '" onchange="updateCategoryColor(' + catId + ', this.value)" style="display: none;">';
+                html += '<input type="text" class="category-name-input" value="' + categoryName + '" onchange="updateCategoryName(' + catId + ', this.value)" placeholder="Nom de la catégorie">';
+                html += '<button class="btn-small btn-danger" onclick="deleteCategory(' + catId + ')">Supprimer</button>';
+                html += '</div>';
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        async function addNewCategory() {
+            const name = prompt('Nom de la nouvelle catégorie:');
+            if (!name || !name.trim()) return;
+            
+            try {
+                const { data, error } = await supabase
+                    .from('message_categories')
+                    .insert({
+                        category_name: name.trim(),
+                        color_hex: '#667eea',
+                        user_name: currentUser
+                    })
+                    .select();
+                
+                if (error) throw error;
+                
+                await loadCategories();
+                await loadTemplates(); // Recharger les templates pour mettre à jour les menus déroulants
+                showStatus('success', 'Catégorie "' + escapeHtml(name) + '" créée avec succès');
+            } catch (error) {
+                console.error('Erreur lors de la création:', error);
+                showStatus('error', 'Erreur: ' + escapeHtml(error.message));
+            }
+        }
+        
+        async function updateCategoryName(id, newName) {
+            if (!newName || !newName.trim()) {
+                await loadCategories();
+                return;
+            }
+            
+            try {
+                const { error } = await supabase
+                    .from('message_categories')
+                    .update({ category_name: newName.trim() })
+                    .eq('id', id);
+                
+                if (error) throw error;
+                
+                await loadCategories();
+            } catch (error) {
+                console.error('Erreur lors de la mise à jour:', error);
+                showStatus('error', 'Erreur: ' + escapeHtml(error.message));
+            }
+        }
+        
+        async function updateCategoryColor(id, colorHex) {
+            try {
+                const { error } = await supabase
+                    .from('message_categories')
+                    .update({ color_hex: colorHex })
+                    .eq('id', id);
+                
+                if (error) throw error;
+                
+                await loadCategories();
+            } catch (error) {
+                console.error('Erreur lors de la mise à jour:', error);
+                showStatus('error', 'Erreur: ' + escapeHtml(error.message));
+            }
+        }
+        
+        async function deleteCategory(id) {
+            if (!confirm('Êtes-vous sûr de vouloir supprimer cette catégorie ? Les templates associés ne seront pas supprimés mais perdront leur catégorie.')) {
+                return;
+            }
+            
+            try {
+                // D'abord, retirer la catégorie des templates
+                await supabase
+                    .from('sms_templates')
+                    .update({ category_id: null })
+                    .eq('category_id', id);
+                
+                // Ensuite, supprimer la catégorie
+                const { error } = await supabase
+                    .from('message_categories')
+                    .delete()
+                    .eq('id', id);
+                
+                if (error) throw error;
+                
+                await loadCategories();
+                await loadTemplates(); // Recharger les templates pour mettre à jour les menus déroulants
+                showStatus('success', 'Catégorie supprimée avec succès');
+            } catch (error) {
+                console.error('Erreur lors de la suppression:', error);
+                showStatus('error', 'Erreur: ' + escapeHtml(error.message));
+            }
+        }
+        
+        async function loadTemplates() {
+            const container = document.getElementById('templates-container');
+            container.innerHTML = '<div class="loading">Chargement des templates...</div>';
+            
+            try {
+                // Charger les catégories si elles ne sont pas déjà chargées
+                if (categories.length === 0) {
+                    const { data: catsData, error: catsError } = await supabase
+                        .from('message_categories')
+                        .select('*')
+                        .or(`user_name.is.null,user_name.eq.${currentUser}`)
+                        .order('category_name', { ascending: true });
+                    
+                    if (!catsError) {
+                        categories = catsData || [];
+                    }
+                }
+                
+                const { data, error } = await supabase
+                    .from('sms_templates')
+                    .select('template_text, template_index, category_id, message_categories(color_hex, category_name)')
+                    .eq('category', currentCategory)
+                    .eq('user_name', currentUser)
+                    .order('template_index', { ascending: true });
+                
+                if (error) throw error;
+                
+                templates = data || [];
+                renderTemplates();
+            } catch (error) {
+                console.error('Erreur lors du chargement:', error);
+                container.innerHTML = '<div class="status error">Erreur: ' + escapeHtml(error.message) + '</div>';
+            }
+        }
+        
+        function renderTemplates() {
+            const container = document.getElementById('templates-container');
+            
+            // Afficher les placeholders selon la catégorie
+            let placeholderInfo = '';
+            if (currentCategory === 'PDF') {
+                placeholderInfo = '<div class="placeholder-info"><strong>Placeholders disponibles:</strong>[lien_pdf] - Lien du PDF<br>[lien2] - URL depuis download_website_url_plumberz</div>';
+            } else if (currentCategory === 'PDF no website') {
+                placeholderInfo = '<div class="placeholder-info"><strong>Note:</strong> Aucun placeholder disponible pour cette catégorie</div>';
+            } else if (currentCategory === 'Offert 3 month') {
+                placeholderInfo = '<div class="placeholder-info"><strong>Placeholders disponibles:</strong>[lien_pdf] - Lien du PDF<br>[lien2] - URL depuis download_website_url_plumberz</div>';
+            } else {
+                placeholderInfo = '<div class="placeholder-info"><strong>Placeholders disponibles:</strong>[lien] - Lien du site web<br>[lien2] - URL depuis download_website_url_plumberz</div>';
+            }
+            
+            let html = placeholderInfo;
+            
+            // Créer jusqu'à 15 templates (remplir avec des champs vides si nécessaire)
+            const maxTemplates = 15;
+            for (let i = 0; i < maxTemplates; i++) {
+                const template = templates.find(t => t.template_index === i);
+                const templateText = template ? template.template_text : '';
+                const categoryId = template && template.category_id ? template.category_id : null;
+                const categoryColor = template && template.message_categories ? template.message_categories.color_hex : '#667eea';
+                const categoryName = template && template.message_categories ? template.message_categories.category_name : '';
+                
+                html += '<div class="template-item" style="border-left: 4px solid ' + categoryColor + ';">';
+                html += '<div class="template-header">';
+                html += '<label class="template-label">Template ' + (i + 1) + ':</label>';
+                html += '<select class="template-category-select" data-index="' + i + '" onchange="updateTemplateCategory(' + i + ', this.value)" style="border-color: ' + categoryColor + ';">';
+                html += '<option value="">Aucune catégorie</option>';
+                categories.forEach(cat => {
+                    const isSelected = categoryId === cat.id ? 'selected' : '';
+                    html += '<option value="' + cat.id + '" ' + isSelected + ' style="background-color: ' + cat.color_hex + '20;">' + escapeHtml(cat.category_name) + '</option>';
+                });
+                html += '</select>';
+                html += '</div>';
+                html += '<textarea class="template-textarea" data-index="' + i + '" placeholder="Entrez le texte du template ' + (i + 1) + '..." style="border-color: ' + categoryColor + ';">' + escapeHtml(templateText) + '</textarea>';
+                html += '</div>';
+            }
+            
+            container.innerHTML = html;
+        }
+        
+        async function updateTemplateCategory(templateIndex, categoryId) {
+            const template = templates.find(t => t.template_index === templateIndex);
+            if (!template) return;
+            
+            try {
+                // Trouver le template_id depuis la base de données
+                const { data: templateData, error: fetchError } = await supabase
+                    .from('sms_templates')
+                    .select('id')
+                    .eq('category', currentCategory)
+                    .eq('user_name', currentUser)
+                    .eq('template_index', templateIndex)
+                    .single();
+                
+                if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
+                
+                if (templateData) {
+                    const { error } = await supabase
+                        .from('sms_templates')
+                        .update({ category_id: categoryId ? parseInt(categoryId) : null })
+                        .eq('id', templateData.id);
+                    
+                    if (error) throw error;
+                }
+                
+                await loadTemplates();
+            } catch (error) {
+                console.error('Erreur lors de la mise à jour de la catégorie:', error);
+                showStatus('error', 'Erreur: ' + escapeHtml(error.message));
+            }
+        }
+        
+        async function saveTemplates() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = 'status';
+            
+            try {
+                // Récupérer tous les textareas et leurs catégories
+                const textareas = document.querySelectorAll('.template-textarea');
+                const templatesToSave = [];
+                
+                textareas.forEach((textarea, index) => {
+                    const text = textarea.value.trim();
+                    if (text) {
+                        const categorySelect = document.querySelector(`.template-category-select[data-index="${index}"]`);
+                        const categoryId = categorySelect && categorySelect.value ? parseInt(categorySelect.value) : null;
+                        
+                        templatesToSave.push({
+                            template_index: index,
+                            template_text: text,
+                            category_id: categoryId
+                        });
+                    }
+                });
+                
+                if (templatesToSave.length === 0) {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = 'Erreur: Au moins un template doit être rempli';
+                    return;
+                }
+                
+                // Supprimer les anciens templates pour cette catégorie et cet utilisateur
+                const { error: deleteError } = await supabase
+                    .from('sms_templates')
+                    .delete()
+                    .eq('category', currentCategory)
+                    .eq('user_name', currentUser);
+                
+                if (deleteError) throw deleteError;
+                
+                // Insérer les nouveaux templates avec leurs catégories
+                const templatesToInsert = templatesToSave.map(t => ({
+                    category: currentCategory,
+                    user_name: currentUser,
+                    template_index: t.template_index,
+                    template_text: t.template_text,
+                    category_id: t.category_id
+                }));
+                
+                const { error: insertError } = await supabase
+                    .from('sms_templates')
+                    .insert(templatesToInsert);
+                
+                if (insertError) throw insertError;
+                
+                statusDiv.className = 'status success';
+                statusDiv.textContent = templatesToSave.length + ' template(s) sauvegardé(s) avec succès pour ' + currentUser + ' (' + currentCategory + ')';
+                
+                // Recharger les templates
+                setTimeout(() => {
+                    loadTemplates();
+                }, 1000);
+                
+            } catch (error) {
+                console.error('Erreur lors de la sauvegarde:', error);
+                statusDiv.className = 'status error';
+                statusDiv.textContent = 'Erreur: ' + escapeHtml(error.message);
+            }
+        }
+        
+        function showStatus(type, message) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = message;
+            setTimeout(() => {
+                statusDiv.className = 'status';
+            }, 5000);
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
