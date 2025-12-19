@@ -474,7 +474,7 @@
         const SUPABASE_URL = 'https://ngrkpcdhizheeruitzmf.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ncmtwY2RoaXpoZWVydWl0em1mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk3Nzk5NjMsImV4cCI6MjA2NTM1NTk2M30.PbDscOck-RLbxddxQNhheC6CaGdMEdMwVNOprs0N7H0';
         
-        let supabase;
+        let supabaseClient;
         let currentUser = 'Tobi';
         let currentCategory = 'Classic';
         let templates = [];
@@ -489,7 +489,7 @@
                 return;
             }
             
-            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
             setupEventListeners();
             loadTemplates();
         });
@@ -540,7 +540,7 @@
             container.innerHTML = '<div class="loading">Chargement des catégories...</div>';
             
             try {
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('message_categories')
                     .select('*')
                     .or(`user_name.is.null,user_name.eq.${currentUser}`)
@@ -592,7 +592,7 @@
             if (!name || !name.trim()) return;
             
             try {
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('message_categories')
                     .insert({
                         category_name: name.trim(),
@@ -619,7 +619,7 @@
             }
             
             try {
-                const { error } = await supabase
+                const { error } = await supabaseClient
                     .from('message_categories')
                     .update({ category_name: newName.trim() })
                     .eq('id', id);
@@ -635,7 +635,7 @@
         
         async function updateCategoryColor(id, colorHex) {
             try {
-                const { error } = await supabase
+                const { error } = await supabaseClient
                     .from('message_categories')
                     .update({ color_hex: colorHex })
                     .eq('id', id);
@@ -656,13 +656,13 @@
             
             try {
                 // D'abord, retirer la catégorie des templates
-                await supabase
+                await supabaseClient
                     .from('sms_templates')
                     .update({ category_id: null })
                     .eq('category_id', id);
                 
                 // Ensuite, supprimer la catégorie
-                const { error } = await supabase
+                const { error } = await supabaseClient
                     .from('message_categories')
                     .delete()
                     .eq('id', id);
@@ -685,7 +685,7 @@
             try {
                 // Charger les catégories si elles ne sont pas déjà chargées
                 if (categories.length === 0) {
-                    const { data: catsData, error: catsError } = await supabase
+                    const { data: catsData, error: catsError } = await supabaseClient
                         .from('message_categories')
                         .select('*')
                         .or(`user_name.is.null,user_name.eq.${currentUser}`)
@@ -696,7 +696,7 @@
                     }
                 }
                 
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('sms_templates')
                     .select('template_text, template_index, category_id, message_categories(color_hex, category_name)')
                     .eq('category', currentCategory)
@@ -763,7 +763,7 @@
             
             try {
                 // Trouver le template_id depuis la base de données
-                const { data: templateData, error: fetchError } = await supabase
+                const { data: templateData, error: fetchError } = await supabaseClient
                     .from('sms_templates')
                     .select('id')
                     .eq('category', currentCategory)
@@ -774,7 +774,7 @@
                 if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
                 
                 if (templateData) {
-                    const { error } = await supabase
+                    const { error } = await supabaseClient
                         .from('sms_templates')
                         .update({ category_id: categoryId ? parseInt(categoryId) : null })
                         .eq('id', templateData.id);
@@ -819,7 +819,7 @@
                 }
                 
                 // Supprimer les anciens templates pour cette catégorie et cet utilisateur
-                const { error: deleteError } = await supabase
+                const { error: deleteError } = await supabaseClient
                     .from('sms_templates')
                     .delete()
                     .eq('category', currentCategory)
@@ -836,7 +836,7 @@
                     category_id: t.category_id
                 }));
                 
-                const { error: insertError } = await supabase
+                const { error: insertError } = await supabaseClient
                     .from('sms_templates')
                     .insert(templatesToInsert);
                 
