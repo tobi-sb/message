@@ -439,6 +439,7 @@
                 <button class="category-tab" data-category="PDF">PDF</button>
                 <button class="category-tab" data-category="PDF no website">PDF no website</button>
                 <button class="category-tab" data-category="Offert 3 month">Offert 3 month</button>
+                <button class="category-tab" data-category="carte-visite">carte-visite</button>
             </div>
             <button class="btn-manage-categories" onclick="openCategoriesModal()">Gérer les catégories</button>
         </div>
@@ -517,6 +518,10 @@
             // Boutons utilisateur
             document.querySelectorAll('.user-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
+                    // Si on est sur "carte-visite", ne pas changer d'utilisateur (catégorie commune)
+                    if (currentCategory === 'carte-visite') {
+                        return;
+                    }
                     document.querySelectorAll('.user-btn').forEach(b => b.classList.remove('active'));
                     btn.classList.add('active');
                     currentUser = btn.dataset.user;
@@ -696,12 +701,21 @@
                     }
                 }
                 
-                const { data, error } = await supabaseClient
+                // Pour "carte-visite", on ne filtre pas par user_name (catégorie commune)
+                let query = supabaseClient
                     .from('sms_templates')
                     .select('template_text, template_index, category_id, message_categories(color_hex, category_name)')
                     .eq('category', currentCategory)
-                    .eq('user_name', currentUser)
                     .order('template_index', { ascending: true });
+                
+                if (currentCategory !== 'carte-visite') {
+                    query = query.eq('user_name', currentUser);
+                } else {
+                    // Pour carte-visite, on charge les templates avec user_name null ou on ne filtre pas
+                    query = query.is('user_name', null);
+                }
+                
+                const { data, error } = await query;
                 
                 if (error) throw error;
                 
@@ -724,6 +738,8 @@
                 placeholderInfo = '<div class="placeholder-info"><strong>Note:</strong> Aucun placeholder disponible pour cette catégorie</div>';
             } else if (currentCategory === 'Offert 3 month') {
                 placeholderInfo = '<div class="placeholder-info"><strong>Placeholders disponibles:</strong>[lien_pdf] - Lien du PDF<br>[lien2] - URL depuis download_website_url_plumberz</div>';
+            } else if (currentCategory === 'carte-visite') {
+                placeholderInfo = '<div class="placeholder-info"><strong>Note:</strong> Cette catégorie est commune à tous les utilisateurs</div>';
             } else {
                 placeholderInfo = '<div class="placeholder-info"><strong>Placeholders disponibles:</strong>[lien] - Lien du site web<br>[lien2] - URL depuis download_website_url_plumberz</div>';
             }
@@ -735,14 +751,21 @@
             for (let i = 0; i < maxTemplates; i++) {
                 const template = templates.find(t => t.template_index === i);
                 const templateText = template ? template.template_text : '';
-                const categoryId = template && template.category_id ? template.category_id : null;
+                // Pour "carte-visite", forcer category_id à 7
+                let categoryId = template && template.category_id ? template.category_id : null;
+                if (currentCategory === 'carte-visite') {
+                    categoryId = 7;
+                }
                 const categoryColor = template && template.message_categories ? template.message_categories.color_hex : '#667eea';
                 const categoryName = template && template.message_categories ? template.message_categories.category_name : '';
                 
                 html += '<div class="template-item" style="border-left: 4px solid ' + categoryColor + ';">';
                 html += '<div class="template-header">';
                 html += '<label class="template-label">Template ' + (i + 1) + ':</label>';
-                html += '<select class="template-category-select" data-index="' + i + '" onchange="updateTemplateCategory(' + i + ', this.value)" style="border-color: ' + categoryColor + ';">';
+                // Pour "carte-visite", désactiver le sélecteur car category_id est toujours 7
+                const selectDisabled = currentCategory === 'carte-visite' ? 'disabled' : '';
+                const selectTitle = currentCategory === 'carte-visite' ? 'title="Catégorie automatiquement définie à 7 pour carte-visite"' : '';
+                html += '<select class="template-category-select" data-index="' + i + '" onchange="updateTemplateCategory(' + i + ', this.value)" style="border-color: ' + categoryColor + ';" ' + selectDisabled + ' ' + selectTitle + '>';
                 html += '<option value="">Aucune catégorie</option>';
                 categories.forEach(cat => {
                     const isSelected = categoryId === cat.id ? 'selected' : '';
@@ -763,20 +786,28 @@
             
             try {
                 // Trouver le template_id depuis la base de données
-                const { data: templateData, error: fetchError } = await supabaseClient
+                let query = supabaseClient
                     .from('sms_templates')
                     .select('id')
                     .eq('category', currentCategory)
-                    .eq('user_name', currentUser)
-                    .eq('template_index', templateIndex)
-                    .single();
+                    .eq('template_index', templateIndex);
+                
+                if (currentCategory !== 'carte-visite') {
+                    query = query.eq('user_name', currentUser);
+                } else {
+                    query = query.is('user_name', null);
+                }
+                
+                const { data: templateData, error: fetchError } = await query.single();
                 
                 if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
                 
                 if (templateData) {
+                    // Pour "carte-visite", forcer category_id à 7
+                    const finalCategoryId = currentCategory === 'carte-visite' ? 7 : (categoryId ? parseInt(categoryId) : null);
                     const { error } = await supabaseClient
                         .from('sms_templates')
-                        .update({ category_id: categoryId ? parseInt(categoryId) : null })
+                        .update({ category_id: finalCategoryId })
                         .eq('id', templateData.id);
                     
                     if (error) throw error;
@@ -818,22 +849,30 @@
                     return;
                 }
                 
-                // Supprimer les anciens templates pour cette catégorie et cet utilisateur
-                const { error: deleteError } = await supabaseClient
+                // Supprimer les anciens templates pour cette catégorie
+                let deleteQuery = supabaseClient
                     .from('sms_templates')
                     .delete()
-                    .eq('category', currentCategory)
-                    .eq('user_name', currentUser);
+                    .eq('category', currentCategory);
+                
+                if (currentCategory !== 'carte-visite') {
+                    deleteQuery = deleteQuery.eq('user_name', currentUser);
+                } else {
+                    deleteQuery = deleteQuery.is('user_name', null);
+                }
+                
+                const { error: deleteError } = await deleteQuery;
                 
                 if (deleteError) throw deleteError;
                 
                 // Insérer les nouveaux templates avec leurs catégories
+                // Pour "carte-visite", user_name est null (catégorie commune) et category_id est 7
                 const templatesToInsert = templatesToSave.map(t => ({
                     category: currentCategory,
-                    user_name: currentUser,
+                    user_name: currentCategory === 'carte-visite' ? null : currentUser,
                     template_index: t.template_index,
                     template_text: t.template_text,
-                    category_id: t.category_id
+                    category_id: currentCategory === 'carte-visite' ? 7 : t.category_id
                 }));
                 
                 const { error: insertError } = await supabaseClient
@@ -843,7 +882,8 @@
                 if (insertError) throw insertError;
                 
                 statusDiv.className = 'status success';
-                statusDiv.textContent = templatesToSave.length + ' template(s) sauvegardé(s) avec succès pour ' + currentUser + ' (' + currentCategory + ')';
+                const userText = currentCategory === 'carte-visite' ? 'commun' : currentUser;
+                statusDiv.textContent = templatesToSave.length + ' template(s) sauvegardé(s) avec succès pour ' + userText + ' (' + currentCategory + ')';
                 
                 // Recharger les templates
                 setTimeout(() => {
@@ -853,7 +893,19 @@
             } catch (error) {
                 console.error('Erreur lors de la sauvegarde:', error);
                 statusDiv.className = 'status error';
-                statusDiv.textContent = 'Erreur: ' + escapeHtml(error.message);
+                let errorMessage = 'Erreur: ' + escapeHtml(error.message);
+                
+                // Message spécial pour les contraintes de catégorie
+                if (error.code === '23514' && error.message.includes('category_check')) {
+                    errorMessage = 'ERREUR: La catégorie "' + currentCategory + '" n\'est pas autorisée dans Supabase. ' +
+                        'Vous devez modifier la contrainte CHECK. ' +
+                        'Allez dans Supabase > SQL Editor et exécutez: ' +
+                        'ALTER TABLE sms_templates DROP CONSTRAINT IF EXISTS sms_templates_category_check; ' +
+                        'ALTER TABLE sms_templates ADD CONSTRAINT sms_templates_category_check ' +
+                        'CHECK (category IN (\'Classic\', \'PDF\', \'PDF no website\', \'Offert 3 month\', \'carte-visite\'));';
+                }
+                
+                statusDiv.innerHTML = errorMessage.replace(/\n/g, '<br>');
             }
         }
         
